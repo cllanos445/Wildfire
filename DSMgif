@@ -1,0 +1,50 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import os
+from PIL import Image
+import imageio
+
+# Crear una carpeta para almacenar las imágenes generadas
+output_folder = 'images'
+if not os.path.exists(output_folder):
+    os.makedirs(output_folder)
+
+# Paso 1: Generar imágenes para cada archivo .txt
+for i in range(1000):
+    # Leer el archivo .txt
+    filename = f"data/{i}.txt"
+    # Definir los colores para cada carácter
+    color_map = {
+        'T': (0, 255, 0),    # Verde
+        'B': (255, 0, 0),    # Rojo
+        '.': (255, 255, 255) # Blanco
+    }
+
+    # Leer el archivo de texto
+    with open(filename, 'r') as file:
+        lines = file.readlines()
+
+    # Crear una imagen de 100x100 píxeles
+    img = Image.new('RGB', (100, 100))
+
+    # Recorrer cada línea y cada carácter para asignar el color correspondiente a cada píxel
+    for y, line in enumerate(lines):
+        for x, char in enumerate(line.strip()):  # strip() para eliminar posibles saltos de línea
+            img.putpixel((x, y), color_map[char])
+
+    # Guardar la imagen como 'output.png'
+    img.save(f'images/{i}.png')
+
+# Paso 2: Crear la animación GIF
+images = []
+for i in range(1000):
+    image_path = os.path.join(output_folder, f"{i}.png")
+    if os.path.exists(image_path):
+        # Abrir la imagen y añadirla a la lista
+        images.append(Image.open(image_path))
+
+# Guardar el GIF
+gif_filename = "animation.gif"
+imageio.mimsave(gif_filename, images, duration=0.1)  # duration es el tiempo entre frames
+
+print(f"Animación guardada como {gif_filename}")
