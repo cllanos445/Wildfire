@@ -1,0 +1,151 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import os
+from PIL import Image
+from scipy.stats import linregress  # Para ajuste lineal en escala log
+
+# =============================================
+# 1. Configuración inicial (sin cambios)
+# =============================================
+L = 50
+h_c = 4
+steps = 1000
+output_dir = "btw_output"
+os.makedirs(output_dir, exist_ok=True)
+
+# =============================================
+# 2. Función para análisis de avalanchas (NUEVA)
+# =============================================
+def plot_avalanche_distribution(avalanches, output_dir):
+    """Genera gráfica log-log de la distribución de tamaños de avalancha"""
+    # Filtrar avalanchas no nulas
+    nonzero_avalanches = [s for s in avalanches if s > 0]
+
+    if not nonzero_avalanches:
+        print("No hay avalanchas no nulas para graficar")
+        return
+
+    # Crear histograma en escala logarítmica
+    bins = np.logspace(
+        np.log10(min(nonzero_avalanches)),
+        np.log10(max(nonzero_avalanches)),
+        30
+    )
+
+    hist, bin_edges = np.histogram(nonzero_avalanches, bins=bins, density=True)
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+
+    # Crear gráfica
+    plt.figure(figsize=(10, 6))
+    plt.scatter(bin_centers, hist, color='darkred', s=40, label='Datos')
+
+    # Ajuste lineal (ley de potencias)
+    log_bins = np.log10(bin_centers[hist > 0])
+    log_hist = np.log10(hist[hist > 0])
+
+    if len(log_bins) > 1:
+        slope, intercept, r_value, _, _ = linregress(log_bins, log_hist)
+        fit_line = 10**(intercept) * bin_centers**(slope)
+
+        plt.plot(
+            bin_centers,
+            fit_line,
+            'k--',
+            linewidth=2,
+            label=f'Ley de potencias: $P(S) \\propto S^{{{slope:.2f}}}$\n$R^2$ = {r_value**2:.3f}'
+        )
+
+    # Configuración de ejes
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.xlabel('Tamaño de avalancha (S)', fontsize=12)
+    plt.ylabel('Probabilidad P(S)', fontsize=12)
+    plt.title('Distribución de Tamaños de Avalancha (Escala Log-Log)', fontsize=14)
+    plt.grid(True, which="both", ls="--", alpha=0.5)
+    plt.legend()
+
+    # Guardar gráfica
+    plt.savefig(f"{output_dir}/avalanche_distribution.png", dpi=150, bbox_inches='tight')
+    plt.close()
+    print(f"Gráfica guardada en {output_dir}/avalanche_distribution.png")
+
+# =============================================
+# 3. Funciones existentes (sin cambios)
+# =============================================
+def initialize_grid(L):
+    return np.random.randint(0, h_c, (L, L))
+
+def relax(grid):
+    avalancha_size = 0
+    unstable = True
+    while unstable:
+        unstable = False
+        for x in range(L):
+            for y in range(L):
+                if grid[x, y] >= h_c:
+                    unstable = True
+                    avalancha_size += 1
+                    grid[x, y] -= 4
+                    for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                        nx, ny = x + dx, y + dy
+                        if 0 <= nx < L and 0 <= ny < L:
+                            grid[nx, ny] += 1
+    return avalancha_size
+
+# =============================================
+# 4. Simulación principal (con adición de análisis)
+# =============================================
+avalanches = []
+frames = []
+grid = initialize_grid(L)
+
+# Paleta de colores personalizada
+paleta = 'RdYlGn_r'  # Verde (bajo) -> Rojo (alto) - ¡INVERTIDA!
+# Otras opciones:
+# 'viridis': Azul (bajo) -> Amarillo (alto)
+# 'plasma': Púrpura (bajo) -> Amarillo (alto)
+# 'inferno': Negro (bajo) -> Amarillo (alto)
+# 'coolwarm': Azul (bajo) -> Rojo (alto)
+# 'jet': Arcoíris (azul -> rojo)
+# 'YlOrRd': Amarillo -> Naranja -> Rojo
+
+for step in range(steps):
+    # Añadir grano aleatorio
+    x, y = np.random.randint(0, L, 2)
+    grid[x, y] += 1
+
+    # Procesar avalancha
+    av_size = relax(grid)
+    avalanches.append(av_size)
+
+    # Guardar frame (cada 10 pasos) - CON NUEVA PALETA
+    if step % 10 == 0:
+        plt.figure(figsize=(8, 8))
+        plt.imshow(grid, cmap=paleta, interpolation='nearest')  # ¡Paleta cambiada aquí!
+        plt.title(f"Paso {step}, Avalancha: {av_size}")
+        plt.colorbar()
+        plt.savefig(f"{output_dir}/frame_{step:04d}.png", bbox_inches='tight')
+        plt.close()
+        frames.append(Image.open(f"{output_dir}/frame_{step:04d}.png"))
+
+# Generar GIF
+frames[0].save(
+    f"{output_dir}/btw_simulation.gif",
+    save_all=True,
+    append_images=frames[1:],
+    duration=200,
+    loop=0
+)
+
+# Guardar datos de avalanchas
+np.savetxt(f"{output_dir}/avalanches.txt", avalanches, fmt='%d')
+
+# =============================================
+# 5. Análisis de distribución (NUEVO)
+# =============================================
+plot_avalanche_distribution(avalanches, output_dir)
+
+print("Simulación completada!")
+print(f"- GIF: {output_dir}/btw_simulation.gif")
+print(f"- Datos: {output_dir}/avalanches.txt")
+print(f"- Gráfica: {output_dir}/avalanche_distribution.png")
