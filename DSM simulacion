@@ -1,0 +1,90 @@
+import random
+import matplotlib.pyplot as plt
+import os 
+
+L = 100 # Tamaño de la cuadrícula (L × L celdas)
+initial_trees = 0.55 # Probabilidad inicial de que una celda tenga un árbol
+p = 0.01  # Probabilidad de que un espacio vacío genere un árbol nuevo.
+f = 0.0001  # Probabilidad de que un árbol se incendie espontáneamente.
+
+
+tree, burning, space = 'TB.' #desempaquetado de cadenas para las 3 posibilidades de las celdas
+#coordenadas de las coord. vecinas en una celda central
+hood = ((-1,-1), (-1,0), (-1,1),
+        (0,-1),          (0, 1),
+        (1,-1),  (1,0),  (1,1))
+ #crea diccionario con valores T y . desde (0, 0) hasta (L-1, L-1)
+def initialise():
+    grid = {(x,y): (tree if random.random()<= initial_trees else space) # iterando en toda la cuadrilla
+            for x in range(L)
+            for y in range(L) }
+    return grid
+
+#Guarda el estado actual de la cuadrícula y su # de iteracion en un archivo de texto
+def gprint(grid,n):
+    # hacer el path data si este no existe para guardar el estado del sistema
+    if not os.path.exists('data'):
+        os.makedirs('data')
+
+    L = max([max(coords) for coords in grid.keys()]) + 1  # Determina el tamaño de la cuadrícula basado en las coordenadas
+    txt = '\n'.join(''.join(grid[(x, y)] for x in range(L))
+                    for y in range(L))
+    with open(f'data/{n}.txt', "w") as file:
+        file.write(txt)
+    print(txt)
+
+# proporciona un resumen estadístico rápido del estado actual del sistema en cada iteracion
+def quickprint(grid,time):
+    t = b = 0
+    ll = L * L
+    for x in range(L):
+        for y in range(L):
+            if grid[(x,y)] in (tree, burning):
+                t += 1 #aumenta el contador de arboles
+                if grid[(x,y)] == burning:
+                    b += 1 # aumenta el contador de arboles quemandose
+    print(('Of %6i cells, %6i are trees of which %6i are currently burning.'+ ' (%6.3f%%, %6.3f%%) at time %i')% (ll, t, b, 100. * t / ll, 100. * b / ll,time))
+    return b, t
+
+
+def gnew(grid): # funcion para cambiar la rejilla en las iteraciones basado en las reglas del modelo
+    newgrid = {}
+    for x in range(L):
+        for y in range(L):
+            if grid[(x,y)] == burning: #genera un espacio vacio de un arbol quemandose
+                newgrid[(x,y)] = space
+            elif grid[(x,y)] == space: # de un espacio vacio genera un arbol con  probabilidad p
+                newgrid[(x,y)] = tree if random.random()<= p else space
+            elif grid[(x,y)] == tree: # generar que un arbol se prenda
+                newgrid[(x,y)] = (burning
+                                  if any(grid.get((x+dx,y+dy),space) == burning
+                                         for dx,dy in hood)
+                                  or random.random()<= f
+                                  else tree)
+    return newgrid
+
+
+#guardar en una lista valores del sistema
+def save_list(list, filename):
+    with open(filename, 'w') as f:
+        for item in list:
+            f.write("%s\n" % item)
+
+#iniciar la funcion que genera la simulacion y listas que guarden valores estadisticos del sistema
+grid = initialise()
+iter = 0
+burning_list = []  # Lista para almacenar el número de árboles en llamas en cada iteración
+tree_list = []  # Lista para almacenar el número de árboles en cada iteración
+
+quickprint(grid, 0)
+inp = 1000
+for i in range(int(inp)):
+    iter += 1
+    grid = gnew(grid)
+    burning_count, tree_count = quickprint(grid, i)
+    burning_list.append(burning_count)
+    tree_list.append(tree_count)
+    gprint(grid,i)
+
+grid = gnew(grid)
+iter += 1
